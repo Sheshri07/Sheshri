@@ -29,7 +29,7 @@ app.set("trust proxy", 1);
 // ---------- ALLOWED ORIGINS ----------
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://shopingnis.netlify.app",
+  "https://sheshrifashion.com",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
