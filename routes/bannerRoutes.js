@@ -3,7 +3,7 @@ import { getBanners, createBanner, updateBanner, deleteBanner } from "../control
 import { verifyAdmin } from "../middleware/auth.js";
 import upload from "../middleware/upload.js";
 
-console.log("Loading bannerRoutes.js... updateBanner type:", typeof updateBanner);
+
 
 const router = express.Router();
 

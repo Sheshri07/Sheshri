@@ -5,7 +5,29 @@ import { createError } from "../utils/error.js";
 
 export const getAllProducts = async (req, res, next) => {
     try {
-        const products = await Product.find();
+        const { page = 1, limit = 0, category, subcategory, fields } = req.query;
+
+        const query = {};
+        if (category) query.category = category;
+        if (subcategory) query.subcategory = subcategory;
+
+        let selectFields = "";
+        if (fields) {
+            selectFields = fields.split(",").join(" ");
+        } else if (limit > 0) {
+            // Default fields for list/grid view if a limit is specified (usually home/listing pages)
+            selectFields = "name price images category subcategory inStock countInStock";
+        }
+
+        const productsQuery = Product.find(query)
+            .select(selectFields)
+            .sort({ createdAt: -1 });
+
+        if (limit > 0) {
+            productsQuery.skip((page - 1) * limit).limit(Number(limit));
+        }
+
+        const products = await productsQuery;
         res.status(200).json(products);
     } catch (error) {
         next(error);

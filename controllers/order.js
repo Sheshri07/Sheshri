@@ -328,6 +328,151 @@ export const cancelOrder = async (req, res, next) => {
 // @desc    Strictly delete order and restore stock (for failed/cancelled online payments)
 // @route   PUT /api/orders/:id/abandon
 // @access  Private
+// @desc    Update multiple orders status
+// @route   PUT /api/orders/bulk-update
+// @access  Private/Admin
+export const updateOrdersStatus = async (req, res, next) => {
+    const { orderIds, status } = req.body;
+
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+        res.status(400);
+        throw new Error("No orders selected");
+    }
+
+    try {
+        const updateData = {};
+
+        if (status === 'delivered') {
+            updateData.isDelivered = true;
+            updateData.deliveredAt = Date.now();
+            updateData.trackingStatus = 'delivered';
+        } else if (status === 'paid') {
+            updateData.isPaid = true;
+            updateData.paidAt = Date.now();
+        } else if (['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery'].includes(status)) {
+            updateData.trackingStatus = status;
+        }
+
+        const result = await Order.updateMany(
+            { _id: { $in: orderIds } },
+            { $set: updateData }
+        );
+
+        res.json({ message: `Successfully updated ${result.modifiedCount} orders`, modifiedCount: result.modifiedCount });
+    } catch (error) {
+        console.error("Bulk update error:", error);
+        next(error);
+    }
+};
+
+// @desc    Update return status
+// @route   PUT /api/orders/:id/return
+// @access  Private/Admin
+export const updateReturnStatus = async (req, res, next) => {
+    const { status, reason, adminNote } = req.body;
+
+    console.log("Updating return status:", { id: req.params.id, status, adminNote });
+
+    const order = await Order.findById(req.params.id);
+
+    if (order) {
+        order.returnStatus = status;
+        if (reason) order.returnReason = reason;
+        if (adminNote !== undefined) order.returnAdminNote = adminNote;
+
+        if (status === 'Completed') {
+            // Logic for refund could go here if integrated with payment gateway
+            // For now, we assume manual refund or just tracking
+            order.trackingStatus = 'returned';
+        }
+
+        const updatedOrder = await order.save();
+        res.json(updatedOrder);
+    } else {
+        res.status(404);
+        throw new Error("Order not found");
+    }
+};
+
+// @desc    Get all return requests
+// @route   GET /api/orders/returns/all
+// @access  Private/Admin
+export const getReturnRequests = async (req, res, next) => {
+    try {
+        const orders = await Order.find({
+            returnStatus: { $in: ['Requested', 'Approved', 'Rejected', 'Completed'] }
+        }).populate("user", "id name email").sort({ updatedAt: -1 });
+
+        res.json(orders);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Request return for an order
+// @route   PUT /api/orders/:id/request-return
+// @access  Private
+export const requestReturn = async (req, res, next) => {
+    const { reason } = req.body;
+    const order = await Order.findById(req.params.id);
+
+    if (order) {
+        if (order.user.toString() !== req.user.id) {
+            res.status(401);
+            throw new Error('Not authorized to request return for this order');
+        }
+
+        if (order.trackingStatus !== 'delivered') {
+            res.status(400);
+            throw new Error('Return can only be requested for delivered orders');
+        }
+
+        // Check for 7-day return limit
+        if (order.deliveredAt) {
+            const deliveredDate = new Date(order.deliveredAt);
+            const currentDate = new Date();
+            const diffTime = Math.abs(currentDate - deliveredDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 7) {
+                res.status(400);
+                throw new Error('Return request can only be submitted within 7 days of delivery');
+            }
+        }
+
+        if (order.returnStatus !== 'None') {
+            res.status(400);
+            throw new Error('Return request already exists for this order');
+        }
+
+        order.returnStatus = 'Requested';
+        order.returnReason = reason;
+
+        const updatedOrder = await order.save();
+
+        // Notify Admins
+        const admins = await User.find({ role: 'admin' });
+        for (const admin of admins) {
+            if (admin.notificationPreferences?.orderAlerts !== false) {
+                await Notification.create({
+                    user: admin._id,
+                    title: "New Return Request",
+                    message: `Return requested for Order #${order._id.toString().slice(-8)}. Reason: ${reason}${order.returnAdminNote ? `. Admin Note: ${order.returnAdminNote}` : ''}`,
+                    type: "order",
+                    link: `/admin/returns`,
+                    read: false,
+                    relatedOrder: order._id
+                });
+            }
+        }
+
+        res.json(updatedOrder);
+    } else {
+        res.status(404);
+        throw new Error('Order not found');
+    }
+};
+
 export const abandonOrder = async (req, res, next) => {
     try {
         const order = await Order.findById(req.params.id);

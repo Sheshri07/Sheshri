@@ -101,6 +101,17 @@ const orderSchema = new mongoose.Schema(
             timestamp: { type: Date, default: Date.now },
             updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
         }],
+        returnStatus: {
+            type: String,
+            enum: ['None', 'Requested', 'Approved', 'Rejected', 'Completed'],
+            default: 'None'
+        },
+        returnReason: {
+            type: String
+        },
+        returnAdminNote: {
+            type: String
+        },
         trackingNumber: {
             type: String
         },

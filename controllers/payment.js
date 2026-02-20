@@ -37,7 +37,10 @@ export const createPaymentOrder = async (req, res) => {
             const razorpayOrder = await razorpayInstance.orders.create({
                 amount: Math.round(amount * 100), // Amount in paise
                 currency: 'INR',
-                receipt: orderId
+                receipt: orderId,
+                notes: {
+                    orderId: orderId.toString()
+                }
             });
 
             res.json({
@@ -160,7 +163,7 @@ export const handleWebhook = async (req, res) => {
         }
 
         const { event, payload } = req.body;
-        console.log(`Razorpay Webhook Received: ${event}`);
+        // console.log(`Razorpay Webhook Received: ${event}`);
 
         if (event === 'payment.captured') {
             const razorpayPayment = payload.payment.entity;
@@ -192,10 +195,10 @@ export const handleWebhook = async (req, res) => {
                 // Fetch user for notifications
                 // Note: req.user is not available in webhook, we need to handle notifications carefully
                 // For now, let's just mark it paid. Full notification logic would need more lookups.
-                console.log(`Order ${orderId} marked as paid via Webhook.`);
+                // console.log(`Order ${orderId} marked as paid via Webhook.`);
             }
         } else if (event === 'payment.failed') {
-            console.log(`Payment failed for order: ${payload.payment.entity.notes.orderId}`);
+            // console.log(`Payment failed for order: ${payload.payment.entity.notes.orderId}`);
         }
 
         res.json({ status: 'ok' });
