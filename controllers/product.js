@@ -8,8 +8,8 @@ export const getAllProducts = async (req, res, next) => {
         const { page = 1, limit = 0, category, subcategory, fields } = req.query;
 
         const query = {};
-        if (category) query.category = category;
-        if (subcategory) query.subcategory = subcategory;
+        if (category) query.category = { $regex: new RegExp(category, "i") };
+        if (subcategory) query.subcategory = { $regex: new RegExp(subcategory, "i") };
 
         let selectFields = "";
         if (fields) {
